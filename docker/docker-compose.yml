@@ -1,0 +1,26 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: sql-exercise-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: sql_exercise
+      MYSQL_USER: sql_user
+      MYSQL_PASSWORD: sql_pass
+    ports:
+      # ホスト側の3306が使用中の場合は "13306:3306" のように左側だけ変更してください
+      - "3306:3306"
+    volumes:
+      # このディレクトリ内の .sql ファイルは、初回起動時にファイル名の昇順で
+      # 自動実行される（schema.sql → seed_data.sql の順に読み込まれる）
+      - ../db:/docker-entrypoint-initdb.d
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
