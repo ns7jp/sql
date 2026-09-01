@@ -13,7 +13,7 @@
 
 ---
 
-## 問題 2-1: 件数を数える — COUNT(*) と COUNT(列) の違い
+## 問題 1: 件数を数える — COUNT(*) と COUNT(列) の違い
 
 **目的**: `COUNT(*)` と `COUNT(列名)` の違い（NULLの扱い方の違い）を理解する
 
@@ -65,7 +65,7 @@ total_employees | employees_with_manager
 
 ---
 
-## 問題 2-2: 合計・平均・最大・最小 — SUM / AVG / MAX / MIN
+## 問題 2: 合計・平均・最大・最小 — SUM / AVG / MAX / MIN
 
 **目的**: `SUM`・`AVG`・`MAX`・`MIN` という代表的な集計関数の使い方を覚える
 
@@ -118,7 +118,7 @@ total_salary | avg_salary | max_salary | min_salary
 
 ---
 
-## 問題 2-3: グループごとに集計する — GROUP BYの基本
+## 問題 3: グループごとに集計する — GROUP BYの基本
 
 **目的**: `GROUP BY` を使って、行をグループ分けしてから集計する方法を理解する
 
@@ -169,7 +169,7 @@ department_id | employee_count
 
 ---
 
-## 問題 2-4: グループを絞り込む — HAVING
+## 問題 4: グループを絞り込む — HAVING
 
 **目的**: 集計した後のグループを絞り込む `HAVING` の使い方と、`WHERE` との違いを理解する
 
@@ -219,7 +219,7 @@ department_id | employee_count
 
 ---
 
-## 問題 2-5: 複数キーでグループ化 — GROUP BY 複数列
+## 問題 5: 複数キーでグループ化 — GROUP BY 複数列
 
 **目的**: 2つ以上の列を組み合わせて `GROUP BY` する方法を理解する
 
@@ -273,7 +273,7 @@ category_id | stock_status | product_count
 
 ---
 
-## 問題 2-6: 集計前にデータを絞り込む — WHEREとGROUP BYの実行順序
+## 問題 6: 集計前にデータを絞り込む — WHEREとGROUP BYの実行順序
 
 **目的**: `WHERE` と `GROUP BY` がSQL内でどの順番で処理されるかを理解する
 
@@ -316,7 +316,7 @@ department_id | employee_count
 ```
 
 **解説**:
-MySQLはこのSELECT文を、書いてある順番どおりではなく「`FROM` → `WHERE` → `GROUP BY` → `HAVING` → `SELECT` → `ORDER BY`」という順番で処理します。つまり、まず `WHERE hire_date >= '2018-01-01'` によって2018年より前に入社した社員（山田・佐藤・鈴木・高橋・渡辺・中村・加藤の7人）が先に除外され、残った7人の社員だけを対象に `GROUP BY department_id` で部署ごとの集計が行われます。もし `WHERE` がなければ12人全員が対象になり、問題2-3の結果と同じになってしまいます。「絞り込みたいのが集計前の生データなのか、集計後の結果なのか」を意識することが、`WHERE` と `HAVING` を正しく使い分けるコツにもつながります。
+MySQLはこのSELECT文を、書いてある順番どおりではなく「`FROM` → `WHERE` → `GROUP BY` → `HAVING` → `SELECT` → `ORDER BY`」という順番で処理します。つまり、まず `WHERE hire_date >= '2018-01-01'` によって2018年より前に入社した社員（山田・佐藤・鈴木・高橋・渡辺の5人）が先に除外され、残った7人の社員（田中・伊藤・中村・小林・加藤・吉田・山本）だけを対象に `GROUP BY department_id` で部署ごとの集計が行われます。もし `WHERE` がなければ12人全員が対象になり、問題3の結果と同じになってしまいます。「絞り込みたいのが集計前の生データなのか、集計後の結果なのか」を意識することが、`WHERE` と `HAVING` を正しく使い分けるコツにもつながります。
 
 **覚え方のポイント**:
 「まず必要な行だけを選んでから（`WHERE`）、そのあとでグループ分けして計算する（`GROUP BY`）」という2段階の流れをイメージしましょう。実務でも「特定の期間・条件のデータだけを集計したい」という場面は非常に多いため、この組み合わせはよく使います。
@@ -325,7 +325,7 @@ MySQLはこのSELECT文を、書いてある順番どおりではなく「`FROM`
 
 ---
 
-## 問題 2-7: 計算した値を集計する — quantity × unit_price の合計
+## 問題 7: 計算した値を集計する — quantity × unit_price の合計
 
 **目的**: 列同士を計算した結果を集計する方法を理解し、売上金額のような実務指標を求められるようになる
 
@@ -380,7 +380,7 @@ product_id | total_quantity | total_sales
 
 ---
 
-## 問題 2-8: 集計結果を並び替えて上位N件を見る — 集計 + ORDER BY + LIMIT
+## 問題 8: 集計結果を並び替えて上位N件を見る — 集計 + ORDER BY + LIMIT
 
 **目的**: 集計した結果を並び替え、上位だけを取り出す（ランキング形式で見る）方法を理解する
 
@@ -390,7 +390,7 @@ product_id | total_quantity | total_sales
 <details>
 <summary>💡 ヒントを見る</summary>
 
-- 問題2-7と同じように `SUM(quantity * unit_price)` で売上金額を計算します。
+- 問題7と同じように `SUM(quantity * unit_price)` で売上金額を計算します。
 - 降順に並べるには `ORDER BY 列名 DESC` を使います。
 - `ORDER BY` にはカンマ区切りで複数の並び替え条件を指定でき、先に書いたほうが優先されます。
 - 上位N件だけを取り出すには `LIMIT N` を末尾につけます。
