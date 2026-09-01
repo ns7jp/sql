@@ -206,6 +206,7 @@ customers | idx_customers_email   | email       | 1
 - ウィンドウ関数は `関数名() OVER (ORDER BY 列名 DESC)` という書き方をします。
 - `ROW_NUMBER()`は同じ値でも必ず1つずつ違う連番を振ります。
 - `RANK()`は同じ値には同じ順位を振り、その次の順位は同着の人数分スキップされます（例：1位が2人いたら次は3位）。
+- 価格が同額の商品が複数あると、`ORDER BY price DESC`だけでは商品の並び順がデータベースの実装依存になり、実行するたびに順番が変わる可能性があります。`ROW_NUMBER()`で「必ず一意な連番」にしたい場合は、`ORDER BY price DESC, product_id`のように一意な列を2番目の条件として加えます。
 - MySQLでウィンドウ関数が使えるのはバージョン8.0以降です。
 
 </details>
@@ -219,10 +220,10 @@ customers | idx_customers_email   | email       | 1
 SELECT
     product_name,
     price,
-    ROW_NUMBER() OVER (ORDER BY price DESC) AS row_num,
+    ROW_NUMBER() OVER (ORDER BY price DESC, product_id) AS row_num,
     RANK() OVER (ORDER BY price DESC) AS rank_num
 FROM products
-ORDER BY price DESC;
+ORDER BY price DESC, product_id;
 ```
 
 **実行結果イメージ**:
@@ -242,10 +243,10 @@ product_name           | price | row_num | rank_num
 ```
 
 **解説**:
-`ROW_NUMBER()`と`RANK()`はどちらも「順位・連番を振る」ウィンドウ関数ですが、同じ値が並んだときの挙動が異なります。今回のデータでは、オリーブオイルとプログラミング雑誌がどちらも980円で同額です。`ROW_NUMBER()`はこの同額のペアにも11・12という別々の連番を振りますが、`RANK()`はどちらも同じ11位とし、その次の電卓は12位ではなく13位（11位が2件あった分をスキップ）になります。このように、単に「上から何番目か」を知りたいだけなら`ROW_NUMBER()`、「同点は同じ順位として扱いたい」場合は`RANK()`を使う、という使い分けが基本です。
+`ROW_NUMBER()`と`RANK()`はどちらも「順位・連番を振る」ウィンドウ関数ですが、同じ値が並んだときの挙動が異なります。今回のデータでは、オリーブオイルとプログラミング雑誌がどちらも980円で同額です。`RANK()`はこの同額のペアをどちらも同じ11位とし、その次の電卓は12位ではなく13位（11位が2件あった分をスキップ）になります。一方`ROW_NUMBER()`は、同額であっても必ず1つずつ違う連番を振る必要があるため、`price DESC`だけでは「どちらを11位、どちらを12位にするか」が決まりません（DBの内部的な順序に依存し、実行するたびに変わる可能性があります）。そこで`ORDER BY price DESC, product_id`のように一意な`product_id`を2番目の条件に加えることで、同額のときは常に`product_id`が小さい方（オリーブオイル、product_id=7）を先にする、という再現性のある結果にしています。`RANK()`のほうは`OVER`句に`product_id`を加える必要はありません。加えてしまうと「同額でも常に別の順位」になってしまい、`RANK()`本来の「同着は同じ順位」という性質が壊れてしまうため、`RANK() OVER (ORDER BY price DESC)`のままにしている点に注意してください。
 
 **覚え方のポイント**:
-「同着を許すかどうか」で覚えると迷いません。ランキング表示のように同点を同じ順位として見せたいときは`RANK()`（またはランクを飛ばさない`DENSE_RANK()`）、ページネーションのように必ず一意な番号が欲しいときは`ROW_NUMBER()`を使います。GROUP BYと違い、ウィンドウ関数は集計してもそれぞれの行を残せる点が大きな特徴です。
+「同着を許すかどうか」で覚えると迷いません。ランキング表示のように同点を同じ順位として見せたいときは`RANK()`（またはランクを飛ばさない`DENSE_RANK()`）、ページネーションのように必ず一意な番号が欲しいときは`ROW_NUMBER()`を使います。GROUP BYと違い、ウィンドウ関数は集計してもそれぞれの行を残せる点が大きな特徴です。また、`ORDER BY`する値に同着が起こり得るときは、`ROW_NUMBER()`や最終的な`ORDER BY`には主キーなど一意な列をタイブレーカーとして加え、`RANK()`のように「同着を同じ順位にしたい」関数のほうはタイブレーカーを加えない、という使い分けを意識すると、再現性のあるSQLが書けるようになります。
 
 </details>
 
@@ -328,6 +329,7 @@ department_name | employee_name | salary  | salary_rank
 - サブクエリの結果に対して、`SUM(order_total) OVER (ORDER BY order_date)`を使うと、その時点までの累計を計算できます。
 - キャンセルの除外は、サブクエリの中の`WHERE`句で行います。
 - サブクエリには`FROM (SELECT ...) AS 別名`のように別名を付ける必要があります。
+- `order_date`が同じ注文が複数あっても1件ずつ確実に積み上げたい場合は、`ORDER BY`に`order_id`のような一意な列も加え、`ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`で集計対象の範囲(フレーム)を明示します。
 
 </details>
 
@@ -340,7 +342,10 @@ department_name | employee_name | salary  | salary_rank
 SELECT
     sub.order_date,
     sub.order_total,
-    SUM(sub.order_total) OVER (ORDER BY sub.order_date) AS running_total
+    SUM(sub.order_total) OVER (
+        ORDER BY sub.order_date, sub.order_id
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS running_total
 FROM (
     SELECT
         o.order_id,
@@ -351,7 +356,7 @@ FROM (
     WHERE o.status <> 'キャンセル'
     GROUP BY o.order_id, o.order_date
 ) AS sub
-ORDER BY sub.order_date;
+ORDER BY sub.order_date, sub.order_id;
 ```
 
 **実行結果イメージ**:
@@ -370,10 +375,10 @@ order_date | order_total | running_total
 （キャンセルされた注文2件を除いた、全16件が表示されます）
 
 **解説**:
-このSQLは2段階で組み立てられています。まず内側のサブクエリで、`orders`と`order_items`を結合し、キャンセルされた注文を除いたうえで、注文1件ごとの売上金額を`GROUP BY`で計算しています。次に外側のクエリで、そのサブクエリの結果に対して`SUM(order_total) OVER (ORDER BY order_date)`を適用し、「注文日が古いものから、その行までの合計」を計算しています。ポイントは、`SUM() OVER`に`PARTITION BY`を付けず`ORDER BY`だけを指定すると、既定の動作として「先頭からその行までの累計」が計算されることです。通常の`SUM()`を`GROUP BY`と組み合わせると1つの合計値にまとまってしまいますが、ウィンドウ関数なら1行ごとに累計の途中経過を残せます。
+このSQLは2段階で組み立てられています。まず内側のサブクエリで、`orders`と`order_items`を結合し、キャンセルされた注文を除いたうえで、注文1件ごとの売上金額を`GROUP BY`で計算しています。次に外側のクエリで、そのサブクエリの結果に対して`SUM(order_total) OVER (...)`を適用し、「注文日が古いものから、その行までの合計」を計算しています。`SUM() OVER`に`PARTITION BY`を付けず`ORDER BY`だけを指定すると、既定では「先頭からその行までの累計」が計算されますが、既定のフレーム（集計対象の範囲）は`RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`という「`ORDER BY`の値が同じ行はまとめて扱う」ものになっています。もし同じ`order_date`の注文が複数あると、既定のフレームのままでは同じ日付の行がすべて同じ累計値になってしまい、「1件ずつ順番に積み上げる」という意図とずれてしまいます。そこで、`ORDER BY`に一意な`order_id`も加えたうえで、`ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`と明示的にフレームを指定することで、「並び順どおりに1行ずつ確実に積み上げる」という動きを保証しています。通常の`SUM()`を`GROUP BY`と組み合わせると1つの合計値にまとまってしまいますが、ウィンドウ関数なら1行ごとに累計の途中経過を残せます。
 
 **覚え方のポイント**:
-累計・移動平均・前日比などの「時系列の分析」は、`GROUP BY`では実現できず、ウィンドウ関数の`ORDER BY`付きの集計関数が得意とする領域です。「集計してから、その集計結果に対してさらにウィンドウ関数をかける」という2段階構成は実務のレポートSQLで非常によく登場するパターンなので、この形をひな形として覚えておくと応用が効きます。
+累計・移動平均・前日比などの「時系列の分析」は、`GROUP BY`では実現できず、ウィンドウ関数の`ORDER BY`付きの集計関数が得意とする領域です。「集計してから、その集計結果に対してさらにウィンドウ関数をかける」という2段階構成は実務のレポートSQLで非常によく登場するパターンなので、この形をひな形として覚えておくと応用が効きます。また、累計を計算するときは「`ORDER BY`だけに頼らず、`ROWS BETWEEN ...`でフレームを明示し、同着が起きない一意な列も並び順に加える」を習慣にすると、同じ日付・同じ値が重なったときの意図しない挙動を防げます。
 
 </details>
 
